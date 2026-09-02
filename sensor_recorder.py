@@ -1,0 +1,381 @@
+"""
+sensor_recorder.py
+
+Records raw sensor data + calibration for a single chosen vehicle in a CARLA
+scenario_runner scenario. No labels / bounding boxes / classification output
+-- sensor data only.
+
+Usage pattern:
+    1. List the vehicles present in the world and pick one.
+    2. Construct a SensorRecorder for that vehicle and a sensor_type
+       ('cameras' for the 6-camera surround rig, 'lidar' for the single
+       top LiDAR, or 'both' for cameras + lidar together).
+    3. Call setup_sensors() once, after the target vehicle exists.
+    4. Call on_tick() once per world.tick(), from inside the existing
+       scenario tick loop (do not add a second tick() call).
+    5. Call destroy() when the scenario ends or on cleanup/exception.
+
+Output layout: <output_dir>/<scenario_name>/<vehicle_label>/
+    Camera_Front/, Camera_FrontLeft/, ... (if cameras active)
+    lidar01/ (if lidar active)
+    calib/  -- one combined XXXXXX.pkl per written frame, always containing
+               ego_to_world, all 6 intrinsic_Camera_*, all 6
+               lidar_to_Camera_*, and lidar_to_ego (DeepAccident format)
+"""
+
+import math
+import os
+import pickle
+
+import numpy as np
+from PIL import Image
+
+import carla
+
+
+# ---------------------------------------------------------------------------
+# Static sensor configuration -- edit these to change camera/LiDAR mounts
+# ---------------------------------------------------------------------------
+
+IMAGE_SIZE_X = 1600
+IMAGE_SIZE_Y = 900
+
+CAMERA_CONFIGS = [
+    # name,               x,     y,    z,   yaw,   fov
+    ("Camera_Front",       1.5,  0.0,  1.6,    0,   70),
+    ("Camera_FrontLeft",   1.2, -0.5,  1.6,  -55,   70),
+    ("Camera_FrontRight",  1.2,  0.5,  1.6,   55,   70),
+    ("Camera_Back",       -1.8,  0.0,  1.6,  180,  110),
+    ("Camera_BackLeft",   -0.5, -0.5,  1.6, -110,   70),
+    ("Camera_BackRight",  -0.5,  0.5,  1.6,  110,   70),
+]
+
+LIDAR_LOCATION = (0.0, 0.0, 2.0)
+LIDAR_YAW = 0
+LIDAR_CHANNELS = 32
+LIDAR_RANGE = 100
+LIDAR_UPPER_FOV = 10
+LIDAR_LOWER_FOV = -30
+LIDAR_POINTS_PER_ROTATION = 37500  # rays cast per full rotation, at any fps
+
+SENSOR_TYPES = ("cameras", "lidar", "both")
+
+
+def _sorted_vehicle_actors(world):
+    # Sorted by actor id ascending, which matches spawn order -> gives a
+    # stable, deterministic 0..n-1 indexing for a given scenario config.
+    return sorted(world.get_actors().filter("vehicle.*"), key=lambda a: a.id)
+
+
+def list_vehicles(world):
+    """
+    Enumerate every vehicle actor currently in the world, in spawn order.
+
+    Returns a list of dicts: {"index": int, "id": int, "type_id": str,
+    "role_name": str}. "index" is the 0-based ordinal to pass as
+    SensorRecorder(vehicle_index=...) -- the simplest way to pick a vehicle.
+    """
+    vehicles = []
+    for i, actor in enumerate(_sorted_vehicle_actors(world)):
+        vehicles.append({
+            "index": i,
+            "id": actor.id,
+            "type_id": actor.type_id,
+            "role_name": actor.attributes.get("role_name", ""),
+        })
+    return vehicles
+
+
+def _resolve_vehicle(world, vehicle_id, vehicle_role_name, vehicle_index):
+    selectors_given = sum(v is not None for v in (vehicle_id, vehicle_role_name, vehicle_index))
+    if selectors_given == 0:
+        raise ValueError(
+            "SensorRecorder requires exactly one of vehicle_index, vehicle_id, "
+            "or vehicle_role_name. Available vehicles: {}".format(list_vehicles(world))
+        )
+    if selectors_given > 1:
+        raise ValueError(
+            "SensorRecorder: specify only ONE of vehicle_index, vehicle_id, "
+            "vehicle_role_name -- got more than one."
+        )
+
+    candidates = _sorted_vehicle_actors(world)
+
+    if vehicle_index is not None:
+        if vehicle_index < 0 or vehicle_index >= len(candidates):
+            raise ValueError(
+                "No vehicle with index={}: there are {} vehicles in the scene, "
+                "valid indices are 0..{}. Available vehicles: {}".format(
+                    vehicle_index, len(candidates), len(candidates) - 1, list_vehicles(world))
+            )
+        return candidates[vehicle_index]
+
+    if vehicle_id is not None:
+        for actor in candidates:
+            if actor.id == vehicle_id:
+                return actor
+        raise ValueError(
+            "No vehicle with id={} found. Available vehicles: {}".format(
+                vehicle_id, list_vehicles(world))
+        )
+
+    matches = [a for a in candidates if a.attributes.get("role_name", "") == vehicle_role_name]
+    if not matches:
+        raise ValueError(
+            "No vehicle with role_name='{}' found. Available vehicles: {}".format(
+                vehicle_role_name, list_vehicles(world))
+        )
+    if len(matches) > 1:
+        raise ValueError(
+            "role_name='{}' is ambiguous ({} matches). Use vehicle_index or vehicle_id instead. "
+            "Available vehicles: {}".format(vehicle_role_name, len(matches), list_vehicles(world))
+        )
+    return matches[0]
+
+
+def _camera_intrinsic(image_size_x, image_size_y, fov_degrees):
+    # Matches the DeepAccident dataset's intrinsic layout exactly (not the
+    # standard OpenCV [[fx,0,cx],[0,fy,cy],[0,0,1]] convention):
+    #   [[cx, fx,  0], [cy, 0, -fx], [1, 0, 0]]
+    focal = image_size_x / (2.0 * math.tan(fov_degrees * math.pi / 360.0))
+    cx = image_size_x / 2.0
+    cy = image_size_y / 2.0
+    K = np.array([
+        [cx, focal, 0.0],
+        [cy, 0.0, -focal],
+        [1.0, 0.0, 0.0],
+    ], dtype=np.float64)
+    return K
+
+
+def _transform_matrix(transform):
+    return np.array(transform.get_matrix(), dtype=np.float64)
+
+
+def _inverse_transform_matrix(transform):
+    return np.array(transform.get_inverse_matrix(), dtype=np.float64)
+
+
+class SensorRecorder(object):
+    """
+    Attaches the chosen sensor rig(s) -- the 6-camera surround set, the
+    single LiDAR, or both together -- to ONE chosen vehicle, and records
+    output + calibration to disk, frame-synchronized to the CARLA
+    simulation tick.
+    """
+
+    def __init__(self, world, output_dir, scenario_name, fps, sensor_type,
+                 vehicle_index=None, vehicle_id=None, vehicle_role_name=None):
+        if sensor_type not in SENSOR_TYPES:
+            raise ValueError("sensor_type must be one of {}, got '{}'".format(
+                SENSOR_TYPES, sensor_type))
+
+        self.world = world
+        self.fps = fps
+        self.sensor_type = sensor_type
+        self.want_cameras = sensor_type in ("cameras", "both")
+        self.want_lidar = sensor_type in ("lidar", "both")
+
+        self.vehicle = _resolve_vehicle(world, vehicle_id, vehicle_role_name, vehicle_index)
+        role_name = self.vehicle.attributes.get("role_name", "")
+        self.vehicle_label = role_name if role_name else "vehicle_{}".format(self.vehicle.id)
+
+        # <output_dir>/<scenario_name>/<vehicle_label>/{Camera_*, lidar01, calib}
+        self.output_dir = os.path.join(output_dir, scenario_name, self.vehicle_label)
+        self.calib_dir = os.path.join(self.output_dir, "calib")
+
+        self._sensors = []          # spawned carla.Actor sensors
+        self._camera_queues = {}    # name -> FIFO list of (frame, np.ndarray(H,W,3) RGB)
+        self._lidar_queue = []      # FIFO list of (frame, np.ndarray(N,4))
+        self._static_calib = {}     # intrinsics / extrinsics, computed once
+        self._frame_idx = 0         # written-frame counter (6-digit index)
+
+        # Diagnostics -- printed by destroy() so a silent "nothing recorded"
+        # run is easy to root-cause instead of guessing.
+        self._tick_calls = 0
+        self._camera_frames_received = {}  # name -> count
+        self._lidar_frames_received = 0
+        self._write_errors = 0
+
+    # ------------------------------------------------------------------
+    # Setup
+    # ------------------------------------------------------------------
+
+    def setup_sensors(self):
+        blueprint_library = self.world.get_blueprint_library()
+        os.makedirs(self.calib_dir, exist_ok=True)
+
+        # Full combined calib (all 6 intrinsics + all 6 lidar_to_camera +
+        # lidar_to_ego) is computed from the FIXED mount geometry constants,
+        # independent of which sensor_type is actually spawned this run --
+        # carla.Transform.get_matrix()/get_inverse_matrix() work on any
+        # Transform, no spawned actor required. This matches the combined
+        # calib.pkl format (single file per frame, not split per sensor type).
+        self._static_calib = self._compute_full_static_calib()
+
+        if self.want_cameras:
+            self._setup_cameras(blueprint_library)
+        if self.want_lidar:
+            self._setup_lidar(blueprint_library)
+
+    def _compute_full_static_calib(self):
+        lidar_x, lidar_y, lidar_z = LIDAR_LOCATION
+        lidar_transform = carla.Transform(
+            carla.Location(x=lidar_x, y=lidar_y, z=lidar_z),
+            carla.Rotation(yaw=LIDAR_YAW),
+        )
+        lidar_to_ego = _transform_matrix(lidar_transform)
+
+        calib = {"lidar_to_ego": lidar_to_ego}
+
+        for name, x, y, z, yaw, fov in CAMERA_CONFIGS:
+            camera_transform = carla.Transform(
+                carla.Location(x=x, y=y, z=z),
+                carla.Rotation(yaw=yaw),
+            )
+            calib["intrinsic_{}".format(name)] = _camera_intrinsic(IMAGE_SIZE_X, IMAGE_SIZE_Y, fov)
+            # lidar-local point -> ego frame (lidar_transform) -> camera-local frame (inverse of camera_transform)
+            calib["lidar_to_{}".format(name)] = _inverse_transform_matrix(camera_transform).dot(lidar_to_ego)
+
+        return calib
+
+    def _setup_cameras(self, blueprint_library):
+        for name, x, y, z, yaw, fov in CAMERA_CONFIGS:
+            os.makedirs(os.path.join(self.output_dir, name), exist_ok=True)
+
+            cam_bp = blueprint_library.find("sensor.camera.rgb")
+            cam_bp.set_attribute("image_size_x", str(IMAGE_SIZE_X))
+            cam_bp.set_attribute("image_size_y", str(IMAGE_SIZE_Y))
+            cam_bp.set_attribute("fov", str(fov))
+            cam_bp.set_attribute("sensor_tick", str(1.0 / self.fps))
+
+            relative_transform = carla.Transform(
+                carla.Location(x=x, y=y, z=z),
+                carla.Rotation(yaw=yaw),
+            )
+            sensor = self.world.spawn_actor(cam_bp, relative_transform, attach_to=self.vehicle)
+            self._sensors.append(sensor)
+            self._camera_queues[name] = []
+            self._camera_frames_received[name] = 0
+
+            sensor.listen(self._make_camera_callback(name))
+
+    def _make_camera_callback(self, name):
+        def callback(image):
+            buf = np.frombuffer(image.raw_data, dtype=np.uint8)
+            buf = buf.reshape((image.height, image.width, 4))
+            rgb = buf[:, :, :3][:, :, ::-1]  # BGRA -> RGB
+            self._camera_queues[name].append((image.frame, rgb.copy()))
+            self._camera_frames_received[name] += 1
+        return callback
+
+    def _setup_lidar(self, blueprint_library):
+        os.makedirs(os.path.join(self.output_dir, "lidar01"), exist_ok=True)
+
+        rotation_frequency = float(self.fps)
+        points_per_second = LIDAR_POINTS_PER_ROTATION * rotation_frequency
+
+        lidar_bp = blueprint_library.find("sensor.lidar.ray_cast")
+        lidar_bp.set_attribute("channels", str(LIDAR_CHANNELS))
+        lidar_bp.set_attribute("range", str(LIDAR_RANGE))
+        lidar_bp.set_attribute("points_per_second", str(int(points_per_second)))
+        lidar_bp.set_attribute("rotation_frequency", str(rotation_frequency))
+        lidar_bp.set_attribute("upper_fov", str(LIDAR_UPPER_FOV))
+        lidar_bp.set_attribute("lower_fov", str(LIDAR_LOWER_FOV))
+        lidar_bp.set_attribute("sensor_tick", str(1.0 / self.fps))
+
+        x, y, z = LIDAR_LOCATION
+        relative_transform = carla.Transform(
+            carla.Location(x=x, y=y, z=z),
+            carla.Rotation(yaw=LIDAR_YAW),
+        )
+        sensor = self.world.spawn_actor(lidar_bp, relative_transform, attach_to=self.vehicle)
+        self._sensors.append(sensor)
+
+        sensor.listen(self._lidar_callback)
+
+    def _lidar_callback(self, lidar_data):
+        points = np.frombuffer(lidar_data.raw_data, dtype=np.float32)
+        points = points.reshape((-1, 4)).astype(np.float64)  # x, y, z, intensity
+        self._lidar_queue.append((lidar_data.frame, points.copy()))
+        self._lidar_frames_received += 1
+
+    # ------------------------------------------------------------------
+    # Per-tick
+    # ------------------------------------------------------------------
+
+    def on_tick(self):
+        """
+        Call once per world.tick() from the existing scenario tick loop.
+        Writes out the next complete, synchronized sample (if any).
+        """
+        self._tick_calls += 1
+        try:
+            self._try_write_sample()
+        except Exception as e:
+            self._write_errors += 1
+            print("[SensorRecorder] write error at index {}: {}".format(self._frame_idx, e))
+
+    def _try_write_sample(self):
+        # Pair modalities by ARRIVAL ORDER (FIFO), not exact frame-number
+        # equality. CARLA's per-sensor sensor_tick scheduling can drift a
+        # sensor out of phase with its siblings by a tick or two over a long
+        # run, even though all were spawned in the same frozen sim-time
+        # window -- an exact-frame match would then never recur. Treating
+        # "the Nth sample from each active sensor" as one synchronized frame
+        # is robust to that. Only write once every WANTED modality has data.
+        if self.want_cameras and not all(self._camera_queues[name] for name, *_ in CAMERA_CONFIGS):
+            return
+        if self.want_lidar and not self._lidar_queue:
+            return
+
+        ego_to_world = _transform_matrix(self.vehicle.get_transform())
+        frames_used = []
+
+        if self.want_cameras:
+            for name, *_ in CAMERA_CONFIGS:
+                cam_frame, img = self._camera_queues[name].pop(0)
+                frames_used.append(cam_frame)
+                path = os.path.join(self.output_dir, name, "{:06d}.jpg".format(self._frame_idx))
+                Image.fromarray(img, mode="RGB").save(path, quality=95)
+
+        if self.want_lidar:
+            lidar_frame, points = self._lidar_queue.pop(0)
+            frames_used.append(lidar_frame)
+            path = os.path.join(self.output_dir, "lidar01", "{:06d}.npz".format(self._frame_idx))
+            np.savez(path, data=points)
+
+        spread = max(frames_used) - min(frames_used)
+        if spread > 2:
+            print("[SensorRecorder] warning: frame spread={} for index {} (frames={})".format(
+                spread, self._frame_idx, frames_used))
+
+        self._write_calib(ego_to_world)
+        self._frame_idx += 1
+
+    def _write_calib(self, ego_to_world):
+        calib = dict(self._static_calib)
+        calib["ego_to_world"] = ego_to_world
+        path = os.path.join(self.calib_dir, "{:06d}.pkl".format(self._frame_idx))
+        with open(path, "wb") as f:
+            pickle.dump(calib, f, protocol=pickle.HIGHEST_PROTOCOL)
+
+    # ------------------------------------------------------------------
+    # Teardown
+    # ------------------------------------------------------------------
+
+    def destroy(self):
+        received = dict(self._camera_frames_received)
+        if self.want_lidar:
+            received["lidar01"] = self._lidar_frames_received
+        print("[SensorRecorder] summary: on_tick calls={}, frames written={}, "
+              "write errors={}, sensor callbacks received={}".format(
+                  self._tick_calls, self._frame_idx, self._write_errors, received))
+
+        for sensor in self._sensors:
+            if sensor.is_alive:
+                sensor.stop()
+                sensor.destroy()
+        self._sensors = []
+        self._camera_queues = {}
+        self._lidar_queue = []

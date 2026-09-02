@@ -1,0 +1,12 @@
+<scenarios>
+    <scenario name="FiveWaySignalisedIntersectionCollision" type="FiveWaySignalisedIntersectionCollision" town="Town03">
+        <ego_vehicle x="-85.21" y="-126.87" z="0.28" yaw="89.84" model="vehicle.tesla.model3" color="0,255,0" />
+        <weather
+            cloudiness="30"
+            precipitation="0"
+            precipitation_deposits="0"
+            wind_intensity="10"
+            sun_azimuth_angle="0"
+            sun_altitude_angle="75" />
+    </scenario>
+</scenarios>
