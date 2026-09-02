@@ -5,8 +5,7 @@ traffic-collision scenarios, each wired up to record synchronized multi-camera +
 data (with full calibration) from **any single vehicle you choose** — the ego, either colliding
 vehicle, or any of ~30 background traffic vehicles.
 
-Output format matches the [DeepAccident](https://github.com/deepaccident/DeepAccident) dataset
-layout: 6 surround cameras, 1 top LiDAR, and a combined per-frame calibration file.
+Output contains 6 surround cameras, 1 top LiDAR, and a combined per-frame calibration file.
 
 ## Recorded Data
 
@@ -37,10 +36,9 @@ captures the lead-up and immediate aftermath of the crash without recording inde
 
 ## Requirements
 
-- CARLA simulator (tested against 0.9.14) with its Python API on `PYTHONPATH`
-- [scenario_runner](https://github.com/carla-simulator/scenario_runner) (tested against 0.9.13)
-- Python 3.7 (matches scenario_runner's supported version)
-- `numpy`, `Pillow` (`pip install numpy pillow`)
+- CARLA simulator (tested on 0.9.14) 
+- scenario_runner (tested on 0.9.13)
+- Python 3.7 
 
 ## Setup
 
