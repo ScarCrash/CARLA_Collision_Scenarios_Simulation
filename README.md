@@ -8,6 +8,18 @@ vehicle, or any of ~30 background traffic vehicles.
 Output format matches the [DeepAccident](https://github.com/deepaccident/DeepAccident) dataset
 layout: 6 surround cameras, 1 top LiDAR, and a combined per-frame calibration file.
 
+## Recorded Data
+
+Pre-recorded sensor data for both scenarios is available on the
+[Releases page](https://github.com/siribooncha/CARLA_Collision_Scenarios_Simulation/releases/tag/release-assets):
+
+- `five-way-signalised-intersection-collision-data.zip`
+- `four-way-unsignalised-intersection-collision-data-part1.zip` + `four-way-unsignalised-intersection-collision-data-part2.zip`
+  (split across 2 files due to GitHub's per-file size limit — extract both into the same destination folder)
+
+Download and extract into a `sensor_output/` folder at the repo root to match the layout described
+below.
+
 ## Scenarios
 
 | Scenario | Map | Description |
