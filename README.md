@@ -29,6 +29,8 @@ below.
 
 https://github.com/user-attachments/assets/81b95d41-0c02-428a-8e00-77794f1fa9f1
 
+https://github.com/user-attachments/assets/97087b87-ce0c-424f-b7a5-f2ad7f0599ec
+
 Both scenarios run an ego vehicle that drives through and observes the crash. Every vehicle in
 the scene — ego, colliding, or background — can be picked as the recording target at launch time,
 no code edits required.
