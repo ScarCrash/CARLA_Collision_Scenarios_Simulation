@@ -26,6 +26,9 @@ below.
 | **5-way signalised intersection collision** | Town03 | 2 vehicles collide at a 5-way signalised intersection, ~30 background vehicles nearby |
 | **4-way unsignalised intersection collision** | Town04 | 3 vehicles collide near a 4-way unsignalised intersection, ~30 background vehicles nearby |
 
+
+https://github.com/user-attachments/assets/81b95d41-0c02-428a-8e00-77794f1fa9f1
+
 Both scenarios run an ego vehicle that drives through and observes the crash. Every vehicle in
 the scene — ego, colliding, or background — can be picked as the recording target at launch time,
 no code edits required.
