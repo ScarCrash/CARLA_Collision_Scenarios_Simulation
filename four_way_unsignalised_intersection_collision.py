@@ -274,10 +274,19 @@ class FourWayUnsignalisedIntersectionCollision(BasicScenario):
         ]
 
         TARGET_SURROUND_VEHICLES = 30
-        TOPUP_MODELS = [
-            "vehicle.audi.tt", "vehicle.bmw.grandtourer", "vehicle.toyota.prius",
-            "vehicle.lincoln.mkz_2017", "vehicle.mini.cooper_s_2021",
-            "vehicle.mercedes.coupe_2020", "vehicle.nissan.micra", "vehicle.citroen.c3",
+        # Fixed (model, color) pairs, not random.choice() -- picked
+        # deterministically below by position in the sorted `remaining` spawn
+        # list, so a re-run always tops up the exact same vehicles in the
+        # exact same visual order as any previous run.
+        TOPUP_CONFIGS = [
+            ("vehicle.audi.tt", "90,90,90"),
+            ("vehicle.bmw.grandtourer", "20,20,120"),
+            ("vehicle.toyota.prius", "200,200,200"),
+            ("vehicle.lincoln.mkz_2017", "10,10,10"),
+            ("vehicle.mini.cooper_s_2021", "180,120,0"),
+            ("vehicle.mercedes.coupe_2020", "60,60,60"),
+            ("vehicle.nissan.micra", "150,0,0"),
+            ("vehicle.citroen.c3", "0,90,90"),
         ]
         INTERSECTION_CENTER = carla.Location(x=200.0, y=-220.0, z=0.0)
 
@@ -338,10 +347,13 @@ class FourWayUnsignalisedIntersectionCollision(BasicScenario):
             remaining = [i for i in range(len(map_spawn_points)) if i not in used_fallback_indices]
             remaining.sort(key=lambda i: INTERSECTION_CENTER.distance(map_spawn_points[i].location))
 
-            for i in remaining:
+            for topup_idx, i in enumerate(remaining):
                 if len(self.surrounding_vehicles) >= TARGET_SURROUND_VEHICLES:
                     break
-                bp = blueprint_library.find(random.choice(TOPUP_MODELS))
+                model, color = TOPUP_CONFIGS[topup_idx % len(TOPUP_CONFIGS)]
+                bp = blueprint_library.find(model)
+                if bp.has_attribute('color'):
+                    bp.set_attribute('color', color)
                 veh = world.try_spawn_actor(bp, map_spawn_points[i])
                 if veh:
                     used_fallback_indices.add(i)

@@ -272,7 +272,33 @@ class SensorRecorder(object):
     def _setup_lidar(self, blueprint_library):
         os.makedirs(os.path.join(self.output_dir, "lidar01"), exist_ok=True)
 
-        rotation_frequency = float(self.fps)
+        # A CARLA LiDAR only completes a full 360-degree rotation per saved
+        # frame if rotation_frequency == the WORLD's actual tick rate (i.e.
+        # one full revolution happens during each world.tick()). Deriving it
+        # from world.get_settings().fixed_delta_seconds -- instead of trusting
+        # the recorder's own `fps` argument to already match it -- means the
+        # two can never silently drift apart (that drift is exactly what
+        # previously caused each saved frame to only cover a partial sweep:
+        # rotation_frequency ended up a fraction of the real tick rate).
+        settings = self.world.get_settings()
+        if not settings.synchronous_mode or not settings.fixed_delta_seconds:
+            raise RuntimeError(
+                "SensorRecorder requires the CARLA world to be running in "
+                "synchronous mode with a fixed fixed_delta_seconds. Without "
+                "it, the LiDAR's rotation speed drifts relative to the "
+                "simulation tick and every saved frame only captures a "
+                "partial sweep instead of a full 360-degree rotation."
+            )
+        world_tick_hz = 1.0 / settings.fixed_delta_seconds
+        if abs(world_tick_hz - float(self.fps)) > 1e-3:
+            print(
+                "[SensorRecorder] warning: fps={} does not match the world's "
+                "actual tick rate {:.3f} Hz (fixed_delta_seconds={}); using "
+                "the world's real tick rate for rotation_frequency so each "
+                "saved LiDAR frame is still a full 360-degree sweep.".format(
+                    self.fps, world_tick_hz, settings.fixed_delta_seconds))
+        rotation_frequency = world_tick_hz
+
         points_per_second = LIDAR_POINTS_PER_ROTATION * rotation_frequency
 
         lidar_bp = blueprint_library.find("sensor.lidar.ray_cast")
@@ -282,7 +308,11 @@ class SensorRecorder(object):
         lidar_bp.set_attribute("rotation_frequency", str(rotation_frequency))
         lidar_bp.set_attribute("upper_fov", str(LIDAR_UPPER_FOV))
         lidar_bp.set_attribute("lower_fov", str(LIDAR_LOWER_FOV))
-        lidar_bp.set_attribute("sensor_tick", str(1.0 / self.fps))
+        # No sensor_tick override here: leaving it at the CARLA default fires
+        # the callback on every world tick, which is exactly one full
+        # rotation per callback at the rotation_frequency set above. Setting
+        # sensor_tick separately is redundant when it should equal the tick
+        # period anyway, and only adds another way for the two to drift apart.
 
         x, y, z = LIDAR_LOCATION
         relative_transform = carla.Transform(
@@ -297,8 +327,25 @@ class SensorRecorder(object):
     def _lidar_callback(self, lidar_data):
         points = np.frombuffer(lidar_data.raw_data, dtype=np.float32)
         points = points.reshape((-1, 4)).astype(np.float64)  # x, y, z, intensity
+
+        if self._lidar_frames_received == 0:
+            self._check_lidar_sweep_coverage(points)
+
         self._lidar_queue.append((lidar_data.frame, points.copy()))
         self._lidar_frames_received += 1
+
+    @staticmethod
+    def _check_lidar_sweep_coverage(points):
+        if len(points) < 50:
+            return
+        azimuth = np.degrees(np.arctan2(points[:, 1], points[:, 0])) % 360.0
+        span = azimuth.max() - azimuth.min()
+        if span < 300.0:
+            print(
+                "[SensorRecorder] WARNING: first LiDAR frame only spans ~{:.0f} "
+                "degrees of azimuth -- expected a full ~360 degree sweep per "
+                "saved frame. The world may not be in synchronous mode with "
+                "fixed_delta_seconds matching this recorder's fps.".format(span))
 
     # ------------------------------------------------------------------
     # Per-tick
@@ -340,6 +387,16 @@ class SensorRecorder(object):
                 Image.fromarray(img, mode="RGB").save(path, quality=95)
 
         if self.want_lidar:
+            # Since the LiDAR now fires every world tick (see _setup_lidar) to
+            # guarantee a clean, undistorted full rotation per callback, it
+            # fills up faster than a slower fps's camera-gated write cadence
+            # can drain it. Always take the FRESHEST queued sweep and discard
+            # the rest -- otherwise every write would pop the oldest
+            # backlogged item, and that backlog (and its staleness relative
+            # to the camera/pose captured this tick) would only grow over
+            # the course of a recording.
+            while len(self._lidar_queue) > 1:
+                self._lidar_queue.pop(0)
             lidar_frame, points = self._lidar_queue.pop(0)
             frames_used.append(lidar_frame)
             path = os.path.join(self.output_dir, "lidar01", "{:06d}.npz".format(self._frame_idx))
