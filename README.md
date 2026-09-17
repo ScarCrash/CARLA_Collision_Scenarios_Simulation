@@ -1,9 +1,9 @@
 # CARLA Collision Sensor Recorder
 
-Two hand-built [CARLA](https://carla.org/) + [scenario_runner](https://github.com/carla-simulator/scenario_runner)
-traffic-collision scenarios, each wired up to record synchronized multi-camera + LiDAR sensor
-data (with full calibration) from **any single vehicle you choose** — the ego, either colliding
-vehicle, or any of ~30 background traffic vehicles.
+Record synchronised multi-camera + LiDAR sensor data (with full calibration) from any single
+vehicle you choose (either colliding vehicle or any of 30 background traffic
+vehicles), across traffic-collision scenarios built from [CARLA](https://carla.org/) +
+[scenario_runner](https://github.com/carla-simulator/scenario_runner).
 
 Output contains 6 surround cameras, 1 top LiDAR, and a combined per-frame calibration file.
 
@@ -14,13 +14,13 @@ Pre-recorded sensor data for both scenarios is available on the
 
 - `five-way-signalised-intersection-collision-data-part1.zip` + `-part2.zip`
 - `four-way-unsignalised-intersection-collision-data-part1.zip` through `-part7.zip`
+  (split across multiple files due to GitHub's per-file size limit; extract every part for a
+  scenario into the same destination folder)
 
-Each scenario's parts are split across multiple files due to GitHub's per-file size limit —
-extract every part for a scenario into the same destination folder. Every recorded frame is a
-full 360-degree LiDAR sweep.
+Every recorded frame is a full 360-degree LiDAR sweep.
 
-Download and extract into a `sensor_output/` folder at the repo root to match the layout described
-below.
+Download and extract into a `sensor_output/` folder at the repo root, following the layout
+described below.
 
 ## Scenarios
 
@@ -29,13 +29,14 @@ below.
 | **5-way signalised intersection collision** | Town03 | 2 vehicles collide at a 5-way signalised intersection, ~30 background vehicles nearby |
 | **4-way unsignalised intersection collision** | Town04 | 3 vehicles collide near a 4-way unsignalised intersection, ~30 background vehicles nearby |
 
-Both scenarios run an ego vehicle that drives through and observes the crash. Every vehicle in
-the scene — ego, colliding, or background — can be picked as the recording target at launch time,
-no code edits required.
 
-Each scenario ends automatically **2 simulated seconds after the first collision is detected**
-(or, if no collision occurs, once the ego finishes its drive distance as a fallback) — so a run
-captures the lead-up and immediate aftermath of the crash without recording indefinitely.
+https://github.com/user-attachments/assets/81b95d41-0c02-428a-8e00-77794f1fa9f1
+
+https://github.com/user-attachments/assets/97087b87-ce0c-424f-b7a5-f2ad7f0599ec
+
+An ego vehicle drives through and observes the crash in both scenarios. The recording target
+can be any vehicle in the scene (ego, colliding, or background), chosen before scenario start.
+No code edit is needed.
 
 ## Requirements
 
@@ -45,7 +46,7 @@ captures the lead-up and immediate aftermath of the crash without recording inde
 
 ## Setup
 
-Drop these files into your `scenario_runner` checkout — the recorder module needs to be
+Drop these files into your `scenario_runner` folder. The recorder module needs to be
 importable as `sensor_recorder`, and the two scenario scripts need to be discoverable by
 scenario_runner's `--additionalScenario` flag:
 
@@ -59,7 +60,7 @@ scenario_runner's `--additionalScenario` flag:
         four_way_unsignalised_intersection_collision.xml
 ```
 
-No changes to scenario_runner itself are needed — everything here is self-contained.
+No changes to scenario_runner itself are needed; everything here is self-contained.
 
 ## Running a scenario
 
@@ -79,24 +80,21 @@ python scenario_runner.py --scenario FourWayUnsignalisedIntersectionCollision ^
     --sync --reloadWorld --timeout 60
 ```
 
-`--sync` and `--reloadWorld` are required — the recorder relies on a synchronous, fixed-tick-rate
-world, and a fresh map load avoids leftover actors from a previous run blocking spawn points.
-
 On Linux/macOS, replace the trailing `^` line continuations with `\`.
 
 ## Choosing what to record
 
-Set these environment variables before launching (all optional, sensible defaults shown):
+Set these environment variables before launching:
 
 | Variable | Default | Meaning |
 |---|---|---|
 | `RECORD_VEHICLE_INDEX` | `0` (ego) | 0-based index into the vehicle list printed at scenario start |
-| `RECORD_VEHICLE_ROLE_NAME` | — | Select by role name instead of index, e.g. `lidar_target`, `camera_target` |
+| `RECORD_VEHICLE_ROLE_NAME` | (none) | Select by role name instead of index, e.g. `lidar_target`, `camera_target` |
 | `RECORD_SENSOR_TYPE` | `cameras` | `cameras`, `lidar`, or `both` |
 | `RECORD_OUTPUT_DIR` | `sensor_output` | Output root directory |
-| `RECORD_FPS` | `20.0` | Capture rate in Hz — should not exceed the world's tick rate |
+| `RECORD_FPS` | `20.0` | Capture rate in Hz; should not exceed the world's tick rate |
 
-Example — record the LiDAR-tagged background vehicle with both cameras and LiDAR at 5 Hz:
+Example: record the LiDAR-tagged background vehicle with both cameras and LiDAR at 5 Hz:
 
 ```bat
 set RECORD_VEHICLE_ROLE_NAME=lidar_target
@@ -117,14 +115,6 @@ Every run prints the full vehicle list at startup:
     ...
 ```
 
-Use this to confirm your `RECORD_VEHICLE_INDEX`/`RECORD_VEHICLE_ROLE_NAME` resolves to the
-vehicle you actually want — the exact count/order can shift slightly run to run if a spawn
-point happens to be blocked.
-
-**Vehicle index layout** (typical; always confirm against the printed list):
-
-- **5-way signalised intersection collision**: `N=0` ego, `N=1,2` the 2 colliding vehicles, `N=3..30` background traffic (30 total)
-- **4-way unsignalised intersection collision**: `N=0` ego, `N=1,2,3` the 3 colliding vehicles (red sedan, green mini, blue truck), `N=4..33` background traffic (30 total)
 
 ## Output format
 
@@ -144,10 +134,10 @@ point happens to be blocked.
 `lidar_target`, `camera_target`), otherwise `vehicle_<id>`.
 
 - **Camera images**: plain RGB JPEG, 1600x900.
-- **LiDAR** (`lidar01/*.npz`): single key `"data"`, a `float64` array of shape `(N, 4)` —
+- **LiDAR** (`lidar01/*.npz`): single key `"data"`, a `float64` array of shape `(N, 4)`, with
   columns `[x, y, z, intensity]` in the LiDAR's local frame.
 - **Calibration** (`calib/*.pkl`): one combined file per frame (Python pickle, dict of numpy
-  arrays), matching the DeepAccident format:
+  arrays)
 
   | Key | Shape | Notes |
   |---|---|---|
@@ -159,14 +149,14 @@ point happens to be blocked.
   All 13 keys are always present regardless of `RECORD_SENSOR_TYPE`, since they're derived from
   fixed mount geometry, not from which sensors are actually spawned that run.
 
-Frame indices are a 6-digit, 0-based, zero-padded counter, identical across every modality for a
+Frame indices use a 6-digit, 0-based, zero-padded counter, identical across every modality for a
 given tick (`Camera_Front/000005.jpg`, `lidar01/000005.npz`, and `calib/000005.pkl` are all the
 same simulated instant).
 
 ## Tuning
 
 - **LiDAR density**: `LIDAR_POINTS_PER_ROTATION` in `sensor_recorder.py` (default `37500` rays
-  cast per rotation — the actual point count in each `.npz` will usually be lower, since only
+  cast per rotation; the actual point count in each `.npz` will usually be lower, since only
   rays that hit something return a point).
 - **Camera/LiDAR mount positions**: `CAMERA_CONFIGS` / `LIDAR_LOCATION` in `sensor_recorder.py`.
 - **Background vehicle count**: `TARGET_SURROUND_VEHICLES` near the top of each scenario's
@@ -174,22 +164,18 @@ same simulated instant).
 
 If you push `RECORD_SENSOR_TYPE=both` with a high `RECORD_FPS` and/or a very high
 `LIDAR_POINTS_PER_ROTATION`, you may hit a simulator timeout (`RuntimeError: time-out ... while
-waiting for the simulator`) — that's real per-tick render/ray-cast load, not a bug. Lower
+waiting for the simulator`). That's real per-tick render/ray-cast load, not a bug. Lower
 `RECORD_FPS`, lower the LiDAR density, or raise `--timeout` on the command line.
 
-## How it works (brief)
+<!-- ## How it works (brief)
 
 - Both scenarios override `_setup_scenario_trigger()` to skip scenario_runner's default
   route-arrival trigger, which would otherwise deadlock (it needs the ego to already be moving
   to succeed, but the ego only starts moving *after* the trigger succeeds).
 - All actors spawn synchronously in `_initialize_actors()` (not via delayed/threaded spawning),
-  and cleanup runs from `remove_all_actors()` — the actual hook `scenario_runner.py` calls when a
-  run finishes — including a self-heal step that destroys any leftover vehicles from a
+  and cleanup runs from `remove_all_actors()` (the actual hook `scenario_runner.py` calls when a
+  run finishes), including a self-heal step that destroys any leftover vehicles from a
   previous interrupted run before spawning new ones.
 - `SensorRecorder` (in `sensor_recorder.py`) attaches the requested sensor rig to the chosen
-  vehicle and hooks into the scenario's existing tick loop via a small `py_trees` behavior — it
-  does not run its own `world.tick()` loop.
-- Background vehicle spawn points are drawn from a hand-picked list near the crash site, with a
-  fallback to the map's own recommended spawn points (`world.get_map().get_spawn_points()`) for
-  any point that fails to spawn, and a top-up pass that fills in extra background vehicles from
-  nearby spawn points until the target count is reached.
+  vehicle and hooks into the scenario's existing tick loop via a small `py_trees` behaviour, and
+  does not run its own `world.tick()` loop. -->
