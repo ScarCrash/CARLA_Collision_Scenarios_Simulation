@@ -10,7 +10,7 @@ Output contains 6 surround cameras, 1 top LiDAR, and a combined per-frame calibr
 ## Recorded Data
 
 Pre-recorded sensor data for both scenarios is available on the
-[Releases page](https://github.com/siribooncha/CARLA_Collision_Scenarios_Simulation/releases/tag/release-assets):
+[Releases page](https://github.com/ScarCrash/CARLA_Collision_Scenarios_Simulation/releases/tag/release-assets):
 
 - `five-way-signalised-intersection-collision-data-part1.zip` + `-part2.zip`
 - `four-way-unsignalised-intersection-collision-data-part1.zip` through `-part7.zip`
