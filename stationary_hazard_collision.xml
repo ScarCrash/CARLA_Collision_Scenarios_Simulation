@@ -1,0 +1,12 @@
+<scenarios>
+    <scenario name="StationaryHazardCollision" type="StationaryHazardCollision" town="Town04">
+        <ego_vehicle x="225.25" y="-364.11" z="0.28" yaw="-0.30" model="vehicle.lincoln.mkz_2017" />
+        <weather
+            cloudiness="30"
+            precipitation="0"
+            precipitation_deposits="0"
+            wind_intensity="10"
+            sun_azimuth_angle="0"
+            sun_altitude_angle="75" />
+    </scenario>
+</scenarios>
