@@ -50,6 +50,48 @@ CAMERA_CONFIGS = [
     ("Camera_BackRight",  -0.5,  0.5,  1.6,  110,   70),
 ]
 
+# CAMERA_CONFIGS' x/z offsets are tuned for a typical sedan (deliberately
+# INSET from the body -- e.g. 1.5m forward sits near the windshield/cabin,
+# well short of a sedan's own ~2.4m half-length, which is normal for a
+# realistic AV camera mount). A much larger vehicle (e.g. a fire truck) has
+# an opaque hood/box extending well past where that inset position would be,
+# so the fixed offset ends up buried inside its body instead of near a
+# glassy cabin area.
+#
+# A ratio-based rescale depends on guessing a "typical sedan" reference size
+# -- if that guess is off, the result is still short of actually clearing
+# the body. Instead, clamp directly to the vehicle's OWN measured front/back
+# distance (plus a clearance margin): this is geometrically guaranteed to
+# sit outside the body regardless of vehicle proportions, not just "probably
+# far enough". bounding_box.location is itself offset from the vehicle's
+# origin for many trucks (e.g. a long rear cargo box shifts the box's center
+# backward), so front and back distances are computed and clamped
+# independently rather than assuming symmetry.
+#
+# Only clamp for vehicles CLEARLY bigger than a sedan (gated by
+# LARGE_VEHICLE_EXTENT_X_THRESHOLD) -- a no-op for every sedan/hatchback-sized
+# vehicle already used and calibrated in the other recorded scenarios.
+LARGE_VEHICLE_EXTENT_X_THRESHOLD = 2.6
+CAMERA_CLEARANCE_MARGIN = 0.3
+
+
+def _camera_mount_offset(vehicle, x, y, z):
+    bbox = vehicle.bounding_box
+    if bbox.extent.x <= LARGE_VEHICLE_EXTENT_X_THRESHOLD:
+        return x, y, z
+
+    front_dist = bbox.location.x + bbox.extent.x  # origin -> front bumper
+    back_dist = bbox.extent.x - bbox.location.x   # origin -> rear bumper
+
+    if x >= 0:
+        x = max(x, front_dist + CAMERA_CLEARANCE_MARGIN)
+    else:
+        x = min(x, -(back_dist + CAMERA_CLEARANCE_MARGIN))
+    if z > 0:
+        z = max(z, bbox.extent.z + CAMERA_CLEARANCE_MARGIN)
+    return x, y, z
+
+
 LIDAR_LOCATION = (0.0, 0.0, 2.0)
 LIDAR_YAW = 0
 LIDAR_CHANNELS = 32
@@ -229,6 +271,7 @@ class SensorRecorder(object):
         calib = {"lidar_to_ego": lidar_to_ego}
 
         for name, x, y, z, yaw, fov in CAMERA_CONFIGS:
+            x, y, z = _camera_mount_offset(self.vehicle, x, y, z)
             camera_transform = carla.Transform(
                 carla.Location(x=x, y=y, z=z),
                 carla.Rotation(yaw=yaw),
@@ -249,8 +292,9 @@ class SensorRecorder(object):
             cam_bp.set_attribute("fov", str(fov))
             cam_bp.set_attribute("sensor_tick", str(1.0 / self.fps))
 
+            mount_x, mount_y, mount_z = _camera_mount_offset(self.vehicle, x, y, z)
             relative_transform = carla.Transform(
-                carla.Location(x=x, y=y, z=z),
+                carla.Location(x=mount_x, y=mount_y, z=mount_z),
                 carla.Rotation(yaw=yaw),
             )
             sensor = self.world.spawn_actor(cam_bp, relative_transform, attach_to=self.vehicle)

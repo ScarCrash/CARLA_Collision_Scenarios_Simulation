@@ -9,13 +9,14 @@ Output contains 6 surround cameras, 1 top LiDAR, and a combined per-frame calibr
 
 ## Recorded Data
 
-Pre-recorded sensor data for both scenarios is available on the
+Pre-recorded sensor data for all three scenarios is available on the
 [Releases page](https://github.com/ScarCrash/CARLA_Collision_Scenarios_Simulation/releases/tag/release-assets):
 
 - `five-way-signalised-intersection-collision-data-part1.zip` + `-part2.zip`
 - `four-way-unsignalised-intersection-collision-data-part1.zip` through `-part7.zip`
-  (split across multiple files due to GitHub's per-file size limit; extract every part for a
-  scenario into the same destination folder)
+- `stationary-hazard-collision-data-part1.zip` and onward
+  (each scenario's parts are split across multiple files due to GitHub's per-file size limit;
+  extract every part for a scenario into the same destination folder)
 
 Every recorded frame is a full 360-degree LiDAR sweep.
 
@@ -28,15 +29,16 @@ described below.
 |---|---|---|
 | **5-way signalised intersection collision** | Town03 | 2 vehicles collide at a 5-way signalised intersection, ~30 background vehicles nearby |
 | **4-way unsignalised intersection collision** | Town04 | 3 vehicles collide near a 4-way unsignalised intersection, ~30 background vehicles nearby |
+| **Stationary hazard collision** | Town04 | A stationary vehicle sits as a hazard in the road; a firetruck drives into it, ~28 background vehicles nearby |
 
 
 https://github.com/user-attachments/assets/81b95d41-0c02-428a-8e00-77794f1fa9f1
 
 https://github.com/user-attachments/assets/97087b87-ce0c-424f-b7a5-f2ad7f0599ec
 
-An ego vehicle drives through and observes the crash in both scenarios. The recording target
-can be any vehicle in the scene (ego, colliding, or background), chosen before scenario start.
-No code edit is needed.
+An ego vehicle drives through and observes the crash in all three scenarios. The recording
+target can be any vehicle in the scene (ego, colliding, or background), chosen before scenario
+start. No code edit is needed.
 
 ## Requirements
 
@@ -58,6 +60,8 @@ scenario_runner's `--additionalScenario` flag:
         five_way_signalised_intersection_collision.xml
         four_way_unsignalised_intersection_collision.py
         four_way_unsignalised_intersection_collision.xml
+        stationary_hazard_collision.py
+        stationary_hazard_collision.xml
 ```
 
 No changes to scenario_runner itself are needed; everything here is self-contained.
@@ -77,6 +81,13 @@ python scenario_runner.py --scenario FiveWaySignalisedIntersectionCollision ^
 python scenario_runner.py --scenario FourWayUnsignalisedIntersectionCollision ^
     --configFile carla-collision-sensor-recorder/four_way_unsignalised_intersection_collision.xml ^
     --additionalScenario carla-collision-sensor-recorder/four_way_unsignalised_intersection_collision.py ^
+    --sync --reloadWorld --timeout 60
+```
+
+```bat
+python scenario_runner.py --scenario StationaryHazardCollision ^
+    --configFile carla-collision-sensor-recorder/stationary_hazard_collision.xml ^
+    --additionalScenario carla-collision-sensor-recorder/stationary_hazard_collision.py ^
     --sync --reloadWorld --timeout 60
 ```
 
@@ -159,8 +170,12 @@ same simulated instant).
   cast per rotation; the actual point count in each `.npz` will usually be lower, since only
   rays that hit something return a point).
 - **Camera/LiDAR mount positions**: `CAMERA_CONFIGS` / `LIDAR_LOCATION` in `sensor_recorder.py`.
-- **Background vehicle count**: `TARGET_SURROUND_VEHICLES` near the top of each scenario's
-  `_initialize_actors()`.
+  These are tuned for a sedan-sized vehicle; for anything clearly bigger (e.g. the firetruck in
+  the stationary hazard scenario), `_camera_mount_offset()` automatically pushes the front/back
+  camera mounts out to clear the vehicle's own bounding box instead of ending up inside it.
+- **Background vehicle count**: `TARGET_SURROUND_VEHICLES` near the top of each intersection
+  scenario's `_initialize_actors()` (the stationary hazard scenario uses a fixed spawn-point list
+  instead, with no top-up pass).
 
 If you push `RECORD_SENSOR_TYPE=both` with a high `RECORD_FPS` and/or a very high
 `LIDAR_POINTS_PER_ROTATION`, you may hit a simulator timeout (`RuntimeError: time-out ... while
