@@ -120,12 +120,13 @@ def _camera_mount_offset(vehicle, x, y, z):
     else:
         y = min(y, -(left_dist + CAMERA_CLEARANCE_MARGIN))
     if z > 0:
-        # Mount at the vehicle's own vertical mid-height (bbox.location.z is
-        # the box's vertical center) rather than pushed up above the roof --
-        # requested after the outward x/y push alone was confirmed working,
-        # since a roof-top mount looked less like a realistic body-mounted
-        # camera than one centered on the side/front face.
-        z = bbox.location.z
+        # bbox.location.z (the box's exact vertical center) read as too LOW
+        # in practice -- a real dashcam/AV rig usually sits up near the
+        # roofline/window belt, not at the vehicle's literal physical
+        # center. Split the difference: halfway between center and roof,
+        # clearly below the previous roof-top mount but well above center.
+        mid_to_roof = bbox.location.z + bbox.extent.z  # origin -> roof
+        z = (bbox.location.z + mid_to_roof) / 2.0
     return x, y, z
 
 
