@@ -120,8 +120,12 @@ def _camera_mount_offset(vehicle, x, y, z):
     else:
         y = min(y, -(left_dist + CAMERA_CLEARANCE_MARGIN))
     if z > 0:
-        top_dist = bbox.location.z + bbox.extent.z  # origin -> roof
-        z = max(z, top_dist + CAMERA_CLEARANCE_MARGIN)
+        # Mount at the vehicle's own vertical mid-height (bbox.location.z is
+        # the box's vertical center) rather than pushed up above the roof --
+        # requested after the outward x/y push alone was confirmed working,
+        # since a roof-top mount looked less like a realistic body-mounted
+        # camera than one centered on the side/front face.
+        z = bbox.location.z
     return x, y, z
 
 
