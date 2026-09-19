@@ -69,24 +69,43 @@ CAMERA_CONFIGS = [
 # independently rather than assuming symmetry.
 #
 # Only clamp for vehicles CLEARLY bigger than a sedan (gated by
-# LARGE_VEHICLE_EXTENT_X_THRESHOLD) -- a no-op for every sedan/hatchback-sized
-# vehicle already used and calibrated in the other recorded scenarios.
+# LARGE_VEHICLE_EXTENT_X_THRESHOLD / _Z_THRESHOLD) -- a no-op for every
+# sedan/hatchback-sized vehicle already used and calibrated in the other
+# recorded scenarios.
+#
+# Gated on length OR height, not just length: a fire truck is caught by the
+# length check, but a boxy cab-over van/bus (e.g. vehicle.volkswagen.t2) can
+# be unremarkable in length yet tall enough that the fixed z=1.6 mount and
+# inset x/y offsets still land inside its cabin/cargo box -- confirmed
+# visually in the red-light-left-turn scenario's v06/v18 (both
+# vehicle.volkswagen.t2): the Front camera shows the dashboard/cowl in frame,
+# and the Back camera shows both the roofline AND the rear deck, i.e. it's
+# sitting well inside the box rather than near the glass.
 LARGE_VEHICLE_EXTENT_X_THRESHOLD = 2.6
+LARGE_VEHICLE_EXTENT_Z_THRESHOLD = 1.1
 CAMERA_CLEARANCE_MARGIN = 0.3
 
 
 def _camera_mount_offset(vehicle, x, y, z):
     bbox = vehicle.bounding_box
-    if bbox.extent.x <= LARGE_VEHICLE_EXTENT_X_THRESHOLD:
+    is_large = (bbox.extent.x > LARGE_VEHICLE_EXTENT_X_THRESHOLD
+                or bbox.extent.z > LARGE_VEHICLE_EXTENT_Z_THRESHOLD)
+    if not is_large:
         return x, y, z
 
     front_dist = bbox.location.x + bbox.extent.x  # origin -> front bumper
     back_dist = bbox.extent.x - bbox.location.x   # origin -> rear bumper
+    right_dist = bbox.location.y + bbox.extent.y  # origin -> right side
+    left_dist = bbox.extent.y - bbox.location.y   # origin -> left side
 
     if x >= 0:
         x = max(x, front_dist + CAMERA_CLEARANCE_MARGIN)
     else:
         x = min(x, -(back_dist + CAMERA_CLEARANCE_MARGIN))
+    if y >= 0:
+        y = max(y, right_dist + CAMERA_CLEARANCE_MARGIN)
+    else:
+        y = min(y, -(left_dist + CAMERA_CLEARANCE_MARGIN))
     if z > 0:
         z = max(z, bbox.extent.z + CAMERA_CLEARANCE_MARGIN)
     return x, y, z
