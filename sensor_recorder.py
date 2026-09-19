@@ -96,6 +96,9 @@ LARGE_VEHICLE_EXTENT_X_THRESHOLD = 2.6
 LARGE_VEHICLE_EXTENT_Y_THRESHOLD = 0.95
 LARGE_VEHICLE_EXTENT_Z_THRESHOLD = 0.95
 CAMERA_CLEARANCE_MARGIN = 0.4
+# 0.0 = vehicle's vertical center, 1.0 = roofline. 0.75 sits close to the
+# roofline/window-belt height a real dashcam/AV rig usually mounts at.
+LARGE_VEHICLE_CAMERA_HEIGHT_FRACTION = 0.75
 
 
 def _camera_mount_offset(vehicle, x, y, z):
@@ -123,10 +126,9 @@ def _camera_mount_offset(vehicle, x, y, z):
         # bbox.location.z (the box's exact vertical center) read as too LOW
         # in practice -- a real dashcam/AV rig usually sits up near the
         # roofline/window belt, not at the vehicle's literal physical
-        # center. Split the difference: halfway between center and roof,
-        # clearly below the previous roof-top mount but well above center.
-        mid_to_roof = bbox.location.z + bbox.extent.z  # origin -> roof
-        z = (bbox.location.z + mid_to_roof) / 2.0
+        # center. Interpolate between center (0.0) and roof (1.0) instead.
+        roof = bbox.location.z + bbox.extent.z  # origin -> roof
+        z = bbox.location.z + LARGE_VEHICLE_CAMERA_HEIGHT_FRACTION * (roof - bbox.location.z)
     return x, y, z
 
 
