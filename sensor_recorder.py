@@ -68,27 +68,40 @@ CAMERA_CONFIGS = [
 # backward), so front and back distances are computed and clamped
 # independently rather than assuming symmetry.
 #
-# Only clamp for vehicles CLEARLY bigger than a sedan (gated by
-# LARGE_VEHICLE_EXTENT_X_THRESHOLD / _Z_THRESHOLD) -- a no-op for every
-# sedan/hatchback-sized vehicle already used and calibrated in the other
-# recorded scenarios.
+# Only clamp for vehicles CLEARLY bigger than a sedan (gated by the three
+# LARGE_VEHICLE_EXTENT_*_THRESHOLD constants below, one per axis) -- a no-op
+# for every sedan/hatchback-sized vehicle already used and calibrated in the
+# other recorded scenarios.
 #
-# Gated on length OR height, not just length: a fire truck is caught by the
-# length check, but a boxy cab-over van/bus (e.g. vehicle.volkswagen.t2) can
-# be unremarkable in length yet tall enough that the fixed z=1.6 mount and
-# inset x/y offsets still land inside its cabin/cargo box -- confirmed
-# visually in the red-light-left-turn scenario's v06/v18 (both
-# vehicle.volkswagen.t2): the Front camera shows the dashboard/cowl in frame,
-# and the Back camera shows both the roofline AND the rear deck, i.e. it's
-# sitting well inside the box rather than near the glass.
+# Gated on length OR width OR height, not just length: a fire truck/ambulance
+# is caught by the length check, but a boxy cab-over van/bus (e.g.
+# vehicle.volkswagen.t2) can be unremarkable in length yet tall AND wide
+# enough that the fixed z=1.6 mount and inset x/y offsets still land inside
+# its cabin/cargo box -- confirmed visually in the red-light-left-turn
+# scenario's v06/v18 (both vehicle.volkswagen.t2): the Front camera shows the
+# dashboard/cowl in frame, and the Back camera shows both the roofline AND
+# the rear deck, i.e. it's sitting well inside the box rather than near the
+# glass.
+#
+# The width/height thresholds are deliberately set LOW (closer to a typical
+# sedan's own real half-width/-height than a generous margin above it) --
+# without a live CARLA connection to query each blueprint's exact
+# bounding_box, there's no way to pin these exactly, and the two failure
+# modes are not symmetric: a vehicle that trips this gate unnecessarily just
+# gets pushed a bit further from a "dashboard cam" look toward a "bumper cam"
+# look (harmless), while a vehicle that SHOULD trip it but doesn't produces
+# the exact occlusion bug this exists to prevent. Erring toward triggering
+# more often is the safe direction.
 LARGE_VEHICLE_EXTENT_X_THRESHOLD = 2.6
-LARGE_VEHICLE_EXTENT_Z_THRESHOLD = 1.1
-CAMERA_CLEARANCE_MARGIN = 0.3
+LARGE_VEHICLE_EXTENT_Y_THRESHOLD = 0.95
+LARGE_VEHICLE_EXTENT_Z_THRESHOLD = 0.95
+CAMERA_CLEARANCE_MARGIN = 0.4
 
 
 def _camera_mount_offset(vehicle, x, y, z):
     bbox = vehicle.bounding_box
     is_large = (bbox.extent.x > LARGE_VEHICLE_EXTENT_X_THRESHOLD
+                or bbox.extent.y > LARGE_VEHICLE_EXTENT_Y_THRESHOLD
                 or bbox.extent.z > LARGE_VEHICLE_EXTENT_Z_THRESHOLD)
     if not is_large:
         return x, y, z
@@ -107,7 +120,8 @@ def _camera_mount_offset(vehicle, x, y, z):
     else:
         y = min(y, -(left_dist + CAMERA_CLEARANCE_MARGIN))
     if z > 0:
-        z = max(z, bbox.extent.z + CAMERA_CLEARANCE_MARGIN)
+        top_dist = bbox.location.z + bbox.extent.z  # origin -> roof
+        z = max(z, top_dist + CAMERA_CLEARANCE_MARGIN)
     return x, y, z
 
 
