@@ -96,9 +96,9 @@ LARGE_VEHICLE_EXTENT_X_THRESHOLD = 2.6
 LARGE_VEHICLE_EXTENT_Y_THRESHOLD = 0.95
 LARGE_VEHICLE_EXTENT_Z_THRESHOLD = 0.95
 CAMERA_CLEARANCE_MARGIN = 0.4
-# 0.0 = vehicle's vertical center, 1.0 = roofline. 0.85 sits close to the
-# roofline/window-belt height a real dashcam/AV rig usually mounts at.
-LARGE_VEHICLE_CAMERA_HEIGHT_FRACTION = 0.85
+# 0.0 = vehicle's vertical center, 1.0 = roofline (flush with the roof, not
+# above it -- CAMERA_CLEARANCE_MARGIN is only applied on the x/y axes).
+LARGE_VEHICLE_CAMERA_HEIGHT_FRACTION = 1.0
 
 
 def _camera_mount_offset(vehicle, x, y, z):
