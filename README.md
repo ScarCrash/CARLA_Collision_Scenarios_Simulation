@@ -15,6 +15,7 @@ Pre-recorded sensor data for all three scenarios is available on the
 - `five-way-signalised-intersection-collision-data-part1.zip` + `-part2.zip`
 - `four-way-unsignalised-intersection-collision-data-part1.zip` through `-part7.zip`
 - `stationary-hazard-collision-data-part1.zip` and onward
+- `red-light-left-turn-collision-data-part1.zip` and onward
   (each scenario's parts are split across multiple files due to GitHub's per-file size limit;
   extract every part for a scenario into the same destination folder)
 
@@ -30,6 +31,7 @@ described below.
 | **5-way signalised intersection collision** | Town03 | 2 vehicles collide at a 5-way signalised intersection, ~30 background vehicles nearby |
 | **4-way unsignalised intersection collision** | Town04 | 3 vehicles collide near a 4-way unsignalised intersection, ~30 background vehicles nearby |
 | **Stationary hazard collision** | Town04 | A stationary vehicle sits as a hazard in the road; a firetruck drives into it, ~28 background vehicles nearby |
+| **Red light left-turn collision** | Town03 | A vehicle runs a red light and collides with another vehicle making a left turn across its path at a signalised intersection, 17 background vehicles nearby |
 
 
 https://github.com/user-attachments/assets/81b95d41-0c02-428a-8e00-77794f1fa9f1
@@ -62,6 +64,8 @@ scenario_runner's `--additionalScenario` flag:
         four_way_unsignalised_intersection_collision.xml
         stationary_hazard_collision.py
         stationary_hazard_collision.xml
+        red_light_left_turn_collision.py
+        red_light_left_turn_collision.xml
 ```
 
 No changes to scenario_runner itself are needed; everything here is self-contained.
@@ -88,6 +92,13 @@ python scenario_runner.py --scenario FourWayUnsignalisedIntersectionCollision ^
 python scenario_runner.py --scenario StationaryHazardCollision ^
     --configFile carla-collision-sensor-recorder/stationary_hazard_collision.xml ^
     --additionalScenario carla-collision-sensor-recorder/stationary_hazard_collision.py ^
+    --sync --reloadWorld --timeout 60
+```
+
+```bat
+python scenario_runner.py --scenario RedLightLeftTurnCollision_1 ^
+    --configFile carla-collision-sensor-recorder/red_light_left_turn_collision.xml ^
+    --additionalScenario carla-collision-sensor-recorder/red_light_left_turn_collision.py ^
     --sync --reloadWorld --timeout 60
 ```
 

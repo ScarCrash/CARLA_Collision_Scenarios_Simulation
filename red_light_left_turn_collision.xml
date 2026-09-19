@@ -1,0 +1,8 @@
+<scenarios>
+    <scenario name="RedLightLeftTurnCollision_1" type="RedLightLeftTurnCollision" town="Town03">
+        <ego_vehicle x="-77.69" y="68.36" z="1.30" yaw="-90.16" model="vehicle.tesla.model3" color="0,0,0" />
+        <other_actor x="201.25" y="6.31" z="0.28" yaw="0.86" model="vehicle.tesla.model3" color="255,255,255" rolename="red_light_vehicle" />
+        <other_actor x="239.62" y="92.18" z="0.57" yaw="-88.61" model="vehicle.carlamotors.firetruck" color="255,0,0" rolename="left_turn_vehicle" />
+        <weather cloudiness="0" precipitation="0" precipitation_deposits="0" wind_intensity="0" sun_azimuth_angle="0" sun_altitude_angle="75" />
+    </scenario>
+</scenarios>
