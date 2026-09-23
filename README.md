@@ -1,6 +1,6 @@
 # CARLA Collision Sensor Recorder
 
-Record synchronised multi-camera + LiDAR sensor data (with full calibration) from any single
+Record synchronised multi-camera + LiDAR sensor data from any single
 vehicle you choose (either colliding vehicle or any of 30 background traffic
 vehicles), across traffic-collision scenarios built from [CARLA](https://carla.org/) +
 [scenario_runner](https://github.com/carla-simulator/scenario_runner).
