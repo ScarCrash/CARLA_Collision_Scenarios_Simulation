@@ -38,7 +38,12 @@ https://github.com/user-attachments/assets/81b95d41-0c02-428a-8e00-77794f1fa9f1
 
 https://github.com/user-attachments/assets/97087b87-ce0c-424f-b7a5-f2ad7f0599ec
 
-An ego vehicle drives through and observes the crash in all three scenarios. The recording
+https://github.com/user-attachments/assets/2a1b679e-22a4-44a9-9260-4dc8f65bd701
+
+https://github.com/user-attachments/assets/91195fc7-efcc-45f1-b1d6-ebe65d3e8427
+
+
+An ego vehicle drives through and observes the crash in all four scenarios. The recording
 target can be any vehicle in the scene (ego, colliding, or background), chosen before scenario
 start. No code edit is needed.
 
