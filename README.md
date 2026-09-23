@@ -116,12 +116,12 @@ Set these environment variables before launching:
 | `RECORD_OUTPUT_DIR` | `sensor_output` | Output root directory |
 | `RECORD_FPS` | `20.0` | Capture rate in Hz; should not exceed the world's tick rate |
 
-Example: record the LiDAR-tagged background vehicle with both cameras and LiDAR at 5 Hz:
+Example: record background vehicle index 3 with both cameras and LiDAR at 1 Hz:
 
 ```bat
-set RECORD_VEHICLE_ROLE_NAME=lidar_target
+set RECORD_VEHICLE_INDEX=3
 set RECORD_SENSOR_TYPE=both
-set RECORD_FPS=5
+set RECORD_FPS=1
 python scenario_runner.py --scenario FiveWaySignalisedIntersectionCollision ^
     --configFile carla-collision-sensor-recorder/five_way_signalised_intersection_collision.xml ^
     --additionalScenario carla-collision-sensor-recorder/five_way_signalised_intersection_collision.py ^
