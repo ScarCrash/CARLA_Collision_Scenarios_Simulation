@@ -128,16 +128,6 @@ python scenario_runner.py --scenario FiveWaySignalisedIntersectionCollision ^
     --sync --reloadWorld --timeout 60
 ```
 
-Every run prints the full vehicle list at startup:
-
-```
-[SensorRecorder] Vehicles available for recording (0..33):
-    index=0   id=227  role_name='hero'      type=vehicle.tesla.model3
-    index=1   id=228  role_name='autopilot' type=vehicle.tesla.model3
-    ...
-```
-
-
 ## Output format
 
 ```
