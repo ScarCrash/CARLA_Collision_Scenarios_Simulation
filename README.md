@@ -42,7 +42,6 @@ https://github.com/user-attachments/assets/2a1b679e-22a4-44a9-9260-4dc8f65bd701
 
 https://github.com/user-attachments/assets/91195fc7-efcc-45f1-b1d6-ebe65d3e8427
 
-
 An ego vehicle drives through and observes the crash in all four scenarios. The recording
 target can be any vehicle in the scene (ego, colliding, or background), chosen before scenario
 start. No code edit is needed.
@@ -170,7 +169,7 @@ Frame indices use a 6-digit, 0-based, zero-padded counter, identical across ever
 given tick (`Camera_Front/000005.jpg`, `lidar01/000005.npz`, and `calib/000005.pkl` are all the
 same simulated instant).
 
-## Tuning
+## Manual Configuration
 
 - **LiDAR density**: `LIDAR_POINTS_PER_ROTATION` in `sensor_recorder.py` (default `37500` rays
   cast per rotation; the actual point count in each `.npz` will usually be lower, since only
@@ -179,9 +178,6 @@ same simulated instant).
   These are tuned for a sedan-sized vehicle; for anything clearly bigger (e.g. the firetruck in
   the stationary hazard scenario), `_camera_mount_offset()` automatically pushes the front/back
   camera mounts out to clear the vehicle's own bounding box instead of ending up inside it.
-- **Background vehicle count**: `TARGET_SURROUND_VEHICLES` near the top of each intersection
-  scenario's `_initialize_actors()` (the stationary hazard scenario uses a fixed spawn-point list
-  instead, with no top-up pass).
 
 If you push `RECORD_SENSOR_TYPE=both` with a high `RECORD_FPS` and/or a very high
 `LIDAR_POINTS_PER_ROTATION`, you may hit a simulator timeout (`RuntimeError: time-out ... while
