@@ -30,8 +30,8 @@ described below.
 |---|---|---|
 | **5-Way Signalised Intersection Collision** | Town03 | Two vehicles collide at a five-way signalised intersection, with 30 background traffic vehicles. |
 | **4-Way Unsignalised Intersection Collision** | Town04 | Two vehicles collide at the four-way unsignalised intersection, with 30 background traffic vehicles. |
-| **Stationary Hazard Collision** | Town04 | A stationary vehicle broke down on the road and was hit by a truck, with 28 background traffic vehicles. |
-| **Red Light Left-Turn Collision** | Town03 | A vehicle runs a red light and collides with another vehicle making a left turn across its path at a signalised intersection, with 17 background vehicles. |
+| **Disabled Vehicle Rear-End Collision** | Town04 | A stationary vehicle broke down on the road and was hit by a truck, with 28 background traffic vehicles. |
+| **Red-Light Runner Hits Left-Turning Vehicle** | Town03 | A vehicle runs a red light and collides with another vehicle making a left turn across its path at a signalised intersection, with 17 background vehicles. |
 
 
 https://github.com/user-attachments/assets/81b95d41-0c02-428a-8e00-77794f1fa9f1
