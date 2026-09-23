@@ -28,10 +28,10 @@ described below.
 
 | Scenario | Map | Description |
 |---|---|---|
-| **5-way signalised intersection collision** | Town03 | 2 vehicles collide at a 5-way signalised intersection, ~30 background vehicles nearby |
-| **4-way unsignalised intersection collision** | Town04 | 3 vehicles collide near a 4-way unsignalised intersection, ~30 background vehicles nearby |
-| **Stationary hazard collision** | Town04 | A stationary vehicle sits as a hazard in the road; a firetruck drives into it, ~28 background vehicles nearby |
-| **Red light left-turn collision** | Town03 | A vehicle runs a red light and collides with another vehicle making a left turn across its path at a signalised intersection, 17 background vehicles nearby |
+| **5-Way Signalised Intersection Collision** | Town03 | Two vehicles collide at a five-way signalised intersection, with 30 background traffic vehicles. |
+| **4-Way Unsignalised Intersection Collision** | Town04 | Two vehicles collide at the four-way unsignalised intersection, with 30 background traffic vehicles. |
+| **Stationary Hazard Collision** | Town04 | A stationary vehicle broke down on the road and was hit by a truck, with 28 background traffic vehicles. |
+| **Red Light Left-Turn Collision** | Town03 | A vehicle runs a red light and collides with another vehicle making a left turn across its path at a signalised intersection, with 17 background vehicles. |
 
 
 https://github.com/user-attachments/assets/81b95d41-0c02-428a-8e00-77794f1fa9f1
